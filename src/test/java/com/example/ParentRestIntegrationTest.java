@@ -5,9 +5,17 @@
  */
 package com.example;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import static org.assertj.core.api.BDDAssertions.then;
+import static org.springframework.http.HttpHeaders.LOCATION;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.net.URI;
+import java.util.Map;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,16 +27,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.net.URI;
-import java.util.Map;
-
-import static org.assertj.core.api.BDDAssertions.then;
-import static org.springframework.http.HttpHeaders.LOCATION;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -55,10 +56,11 @@ public class ParentRestIntegrationTest {
     public void setUp() throws Exception {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
         parentsUri = entityLinks.linkFor(Parent.class).toUri();
+        parentRepository.deleteAll();
     }
 
     @Test
-    public void should_update_items() throws Exception {
+    public void should_update_existing_item() throws Exception {
 
         givenParent();
 
@@ -70,15 +72,47 @@ public class ParentRestIntegrationTest {
                 )
         );
         then(parentRepository.findAll().get(0).getChild().getItems()).hasSize(1);
+        String json = objectMapper.writeValueAsString(jsonMap);
+        System.out.println(json);
         mockMvc
                 .perform(put(parentUri)
-                        .content(objectMapper.writeValueAsString(jsonMap)))
+                        .content(json))
                 .andDo(print())
                 .andExpect(status().isNoContent())
         ;
 
         then(parentRepository.count()).isEqualTo(1);
         then(parentRepository.findAll().get(0).getChild().getItems()).hasSize(1);
+        then(parentRepository.findAll().get(0).getChild().getItems().get(0).getSome()).isEqualTo("test123");
+    }
+
+    @Test
+    public void should_add_new_item() throws Exception {
+
+        givenParent();
+
+        Map<String, Object> jsonMap = ImmutableMap.of(
+                "child", ImmutableMap.of(
+                        "items",ImmutableList.of(
+                                ImmutableMap.of("some", "test123"),
+                                ImmutableMap.of("some", "test1231")
+                        )
+                )
+        );
+        then(parentRepository.findAll().get(0).getChild().getItems()).hasSize(1);
+        String json = objectMapper.writeValueAsString(jsonMap);
+        System.out.println(json);
+        mockMvc
+                .perform(put(parentUri)
+                        .content(json))
+                .andDo(print())
+                .andExpect(status().isNoContent())
+        ;
+
+        then(parentRepository.count()).isEqualTo(1);
+        then(parentRepository.findAll().get(0).getChild().getItems()).hasSize(2);
+        then(parentRepository.findAll().get(0).getChild().getItems().get(0).getSome()).isEqualTo("test123");
+        then(parentRepository.findAll().get(0).getChild().getItems().get(1).getSome()).isEqualTo("test1231");
     }
 
 
